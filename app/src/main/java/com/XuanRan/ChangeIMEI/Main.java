@@ -1,15 +1,14 @@
 package com.XuanRan.ChangeIMEI;
 
 import android.app.Activity;
-import android.app.Application;
 import android.content.Context;
 import android.os.Bundle;
 import android.telephony.TelephonyManager;
-import android.widget.Toast;
 
-import java.lang.reflect.Field;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
@@ -24,25 +23,27 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
  *
  */
 public class Main implements IXposedHookLoadPackage {
-    boolean ReplyCall=true;
-
 
     @Override
     public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam loadPackageParam) throws Throwable {
         String packagename = loadPackageParam.packageName;
         //如果需要对全局生效，请注释下面if条件块
-        if (packagename.equals("com.XuanRan.ChangeIMEI") || packagename.equals("com.taobao.taobao")) {
+        if (packagename.equals("com.XuanRan.ChangeIMEI") || packagename.equals("com.taobao.taobao")|| packagename.equals("com.example.xiejun.xposedstudy.app")) {
+
+
+            new HookXp().handleLoadPackage(loadPackageParam);
+
+
 
             XposedBridge.log("start hook app is " + loadPackageParam.packageName);
 
 
-           // HookDeviceInfo4(loadPackageParam);
 
             XposedHelpers.findAndHookMethod(TelephonyManager.class, "getDeviceId", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                     super.beforeHookedMethod(param);
-
+                    //HOOK getIMEI
                     XposedBridge.log("\n--------------堆栈打印-------------------\n");
                     Exception e = new Exception(loadPackageParam.packageName);
                     StackTraceElement[] stackElements = e.getStackTrace();
@@ -60,7 +61,7 @@ public class Main implements IXposedHookLoadPackage {
                 }
             });
 
-            Hooklnh(loadPackageParam);
+            Hooklnh(loadPackageParam);//主要信息获取类
 
             HookDeviceInfo1(loadPackageParam);
             HookDeviceInfo2(loadPackageParam);
@@ -155,17 +156,32 @@ public class Main implements IXposedHookLoadPackage {
 
 
 
-    private void HookDeviceInfo1(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+    private void HookDeviceInfo1(final XC_LoadPackage.LoadPackageParam loadPackageParam) {
+        final boolean[] ReplyCall={true};
+
         final Class<?> clazz =XposedHelpers.findClass("mtopsdk.mtop.deviceid.DeviceIDManager",loadPackageParam.classLoader);
         XposedHelpers.setStaticObjectField(clazz,"$ipChange",null);
         XposedHelpers.findAndHookMethod(clazz, "getRemoteDeviceID", Context.class, String.class,new XC_MethodHook() {
+
             @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            protected void beforeHookedMethod(final MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
                 XposedHelpers.setStaticObjectField(clazz,"$ipChange",null);
-
+                //AutoCall(loadPackageParam);
+                //XposedHelpers.callMethod()
                 XposedBridge.log("++++++++++++++getRemoteDeviceID方法被调用-++++++++++++++++++++++++-");
                 XposedBridge.log("++++++++++++++getRemoteDeviceID方法调用返回-++++++++++++++++++++++++-"+param.getResult());
+                if (ReplyCall[0]){
+                    Timer timer = new Timer();
+                    timer.schedule(new TimerTask() {
+                        public void run()
+                        {
+                            XposedHelpers.callMethod(param.thisObject,"getRemoteDeviceID", param.args[0], param.args[1]);
+                            XposedBridge.log("-------------主动调用----------------");
+                        }
+                    }, 0, 10000);
+                    ReplyCall[0]=false;
+                }
             }
         });
     }
@@ -198,29 +214,55 @@ public class Main implements IXposedHookLoadPackage {
 
     }
 
-    private void CheckThredCall(XC_LoadPackage.LoadPackageParam loadPackageParam) {
+    private void CheckThredCall(final XC_LoadPackage.LoadPackageParam loadPackageParam) {
+
         final Class<?> clazz =XposedHelpers.findClass("mtopsdk.mtop.util.MtopSDKThreadPoolExecutorFactory$MtopSDKThreadFactory$1",loadPackageParam.classLoader);
 
-       /* if (ReplyCall){
+        final Object[] object = {null};
 
-            Timer timer = new Timer();
-            timer.schedule(new TimerTask() {
-                public void run()
-                {
-                    XposedHelpers.callMethod(clazz,"run");//调用方法
-                }
-            }, 0, 1000);
-            ReplyCall=false;
-        }*/
         final int[] i = {0};
+
         XposedHelpers.findAndHookMethod("mtopsdk.mtop.util.MtopSDKThreadPoolExecutorFactory$MtopSDKThreadFactory$1", loadPackageParam.classLoader, "run", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(final MethodHookParam param) throws Throwable {
                 super.beforeHookedMethod(param);
+                object[0] =param.thisObject;
+                XposedHelpers.setStaticObjectField( clazz,"$ipChange",null);
                 XposedBridge.log("________线程方法调用____________"+ i[0]);
-                i[0]++;
+
             }
         });
+    }
+
+    public void AutoCall(XC_LoadPackage.LoadPackageParam loadPackageParam){
+        XposedBridge.log("111111111____AutoCall_____111111111111111");
+        final boolean[] ReplyCall = {true};
+        final Context[] context = new Context[1];
+        final String[] appKey = new String[1];
+
+        final Class<?> clazz =XposedHelpers.findClass("mtopsdk.mtop.deviceid.DeviceIDManager",loadPackageParam.classLoader);
+        XposedHelpers.findAndHookMethod(clazz, "getRemoteDeviceID", Context.class, String.class,new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                super.beforeHookedMethod(param);
+                XposedHelpers.setStaticObjectField((Class<?>) param.thisObject,"$ipChange",null);
+                context[0] = (Context) param.args[0];
+                appKey[0] = (String) param.args[1];
+
+            }
+        });
+
+        if (ReplyCall[0]){
+            Timer timer = new Timer();
+            timer.schedule(new TimerTask() {
+                public void run()
+                {
+                    XposedHelpers.callMethod(clazz,"getRemoteDeviceID", context[0], appKey[0]);
+                    XposedBridge.log("-------------主动调用----------------");
+                }
+            }, 0, 10000);
+            ReplyCall[0]=false;
+        }
     }
 
 
