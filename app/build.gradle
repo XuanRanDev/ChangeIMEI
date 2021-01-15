@@ -34,7 +34,9 @@ android {
 }
 
 dependencies {
-    //implementation fileTree(dir: 'libs', include: ['*.jar'])
+    compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+
+    compileOnly  'com.android.support:support-v4:27.1.1'
 /*
     compileOnly files('libs/classes2.jar')
     compileOnly files('libs/classes13.jar')*/

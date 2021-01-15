@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
         TextView tv = findViewById(R.id.textview);
         TelephonyManager tele = (TelephonyManager) this.getSystemService(TELEPHONY_SERVICE);
         try {
-            tv.setText(tele.getDeviceId());
+            tv.setText(tele.getDeviceId()+"\n"+tele.getSubscriberId());
         } catch (Exception e) {
             AlertDialog.Builder Alert=new AlertDialog.Builder(this);
             Alert.setTitle("错误");
